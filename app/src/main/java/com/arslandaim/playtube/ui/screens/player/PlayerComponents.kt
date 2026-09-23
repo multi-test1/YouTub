@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.VolumeUp
@@ -76,6 +78,7 @@ fun UnifiedMetadataHub(
     isFavorite: Boolean,
     isSaved: Boolean,
     isDownloaded: Boolean,
+    repeatMode: RepeatMode,
     comments: List<CommentItem>,
     commentCount: Int?,
     onToggleSubscription: () -> Unit,
@@ -83,6 +86,7 @@ fun UnifiedMetadataHub(
     onSaveClick: () -> Unit,
     onDownloadClick: () -> Unit,
     onShareClick: () -> Unit,
+    onRepeatClick: () -> Unit,
     onChannelClick: (String) -> Unit,
     onCommentsClick: () -> Unit
 ) {
@@ -119,10 +123,12 @@ fun UnifiedMetadataHub(
             isFavorite = isFavorite,
             isSaved = isSaved,
             isDownloaded = isDownloaded,
+            repeatMode = repeatMode,
             onToggleFavorite = onToggleFavorite,
             onSaveClick = onSaveClick,
             onDownloadClick = onDownloadClick,
-            onShareClick = onShareClick
+            onShareClick = onShareClick,
+            onRepeatClick = onRepeatClick
         )
         
         Spacer(modifier = Modifier.height(10.dp))
@@ -378,10 +384,12 @@ fun PlayerActionRow(
     isFavorite: Boolean,
     isSaved: Boolean,
     isDownloaded: Boolean,
+    repeatMode: RepeatMode,
     onToggleFavorite: () -> Unit,
     onSaveClick: () -> Unit,
     onDownloadClick: () -> Unit,
-    onShareClick: () -> Unit
+    onShareClick: () -> Unit,
+    onRepeatClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -397,6 +405,17 @@ fun PlayerActionRow(
             onClick = onToggleFavorite
         )
         
+        PlayerActionPill(
+            icon = if (repeatMode == RepeatMode.REPEAT_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+            label = when (repeatMode) {
+                RepeatMode.OFF -> stringResource(R.string.repeat_off)
+                RepeatMode.REPEAT_ONE -> stringResource(R.string.repeat_one)
+                RepeatMode.PLAY_NEXT -> stringResource(R.string.repeat_play_next)
+            },
+            active = repeatMode != RepeatMode.OFF,
+            onClick = onRepeatClick
+        )
+
         PlayerActionPill(
             icon = if (isSaved) Icons.Default.CheckCircle else Icons.AutoMirrored.Filled.PlaylistAdd,
             label = if (isSaved) stringResource(R.string.saved) else stringResource(R.string.save),
@@ -432,13 +451,13 @@ fun PlayerActionPill(
     val haptic = LocalHapticFeedback.current
     
     val backgroundColor by animateColorAsState(
-        targetValue = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) 
+        targetValue = if (active) MaterialTheme.colorScheme.primary 
                       else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         label = "PillBackground"
     )
     
     val contentColor by animateColorAsState(
-        targetValue = if (active) MaterialTheme.colorScheme.primary 
+        targetValue = if (active) Color.White 
                       else MaterialTheme.colorScheme.onSurface,
         label = "PillContent"
     )
@@ -480,8 +499,6 @@ fun LazyListScope.relatedVideosSection(
     relatedVideos: List<VideoItem>,
     downloadedIds: Set<String>,
     favoriteIds: Set<String>,
-    isAutoplayEnabled: Boolean,
-    onAutoplayChange: (Boolean) -> Unit,
     onVideoClick: (VideoItem) -> Unit,
     onChannelClick: (String) -> Unit,
     onFavoriteClick: (VideoItem) -> Unit,
@@ -490,41 +507,15 @@ fun LazyListScope.relatedVideosSection(
 ) {
     item {
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.related_videos),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
-                )
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
-                ) {
-                    Text(
-                        text = "Autoplay",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Switch(
-                        checked = isAutoplayEnabled,
-                        onCheckedChange = onAutoplayChange,
-                        modifier = Modifier.scale(0.6f)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.related_videos),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                letterSpacing = 0.2.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 

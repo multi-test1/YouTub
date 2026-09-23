@@ -114,7 +114,7 @@ object PlayerModule {
                 3000,   // Buffer for playback: 3.0s
                 5000    // Buffer for playback after rebuffer: 5.0s
             )
-            .setBackBuffer(20000, true) // 20s back buffer for instant backward seek
+            .setBackBuffer(120000, true) // 120s (2 min) back buffer for instant backward seek
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 

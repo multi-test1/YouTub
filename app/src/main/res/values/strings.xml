@@ -189,4 +189,18 @@
     <string name="error_malformed_history">Malformed history file</string>
     <string name="error_malformed_csv">Malformed subscriptions file</string>
     <string name="importing_items">Imported %d items...</string>
+
+    <!-- Player Action & Repeat Modes -->
+    <string name="repeat_off">Repeat Off</string>
+    <string name="repeat_one">Repeat 1</string>
+    <string name="repeat_play_next">Autoplay</string>
+    <string name="repeat_mode">Repeat Mode</string>
+    <string name="downloaded_videos">Downloaded Videos</string>
+    <string name="offline_downloads">Offline Downloads</string>
+    <string name="added_to_favorites">Added to Liked Videos</string>
+    <string name="removed_from_favorites">Removed from Liked Videos</string>
+    <string name="downloading_started">Downloading started</string>
+    <string name="connection_lost_waiting">Connection lost. Waiting to resume...</string>
+    <string name="no_previous_video">No previous video in session</string>
+    <string name="skipped_segment">Skipped %s</string>
 </resources>

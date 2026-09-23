@@ -29,15 +29,6 @@ class SABRDataSource(
     private var bytesRemaining = 0L
     private var currentPosition = 0L
 
-    private fun calculateDynamicChunkSize(): Long {
-        val bitrate = bandwidthMeter.bitrateEstimate
-        return when {
-            bitrate >= 5_000_000L -> 2_500 * 1024L // 2.5 MB for high-bitrate / fast connections
-            bitrate >= 2_000_000L -> 1_500 * 1024L // 1.5 MB for medium connections
-            else -> 512 * 1024L                   // 512 KB for low-bitrate / slow connections
-        }
-    }
-
     override fun addTransferListener(transferListener: TransferListener) {
         upstream.addTransferListener(transferListener)
     }
@@ -45,44 +36,15 @@ class SABRDataSource(
     override fun open(dataSpec: DataSpec): Long {
         currentDataSpec = dataSpec
         currentPosition = dataSpec.position
-        bytesRemaining = if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.length else C.LENGTH_UNSET.toLong()
-        
         opened = true
-        
-        // Initial chunk open
-        openNextChunk()
-        
-        return bytesRemaining
-    }
-
-    private fun openNextChunk() {
-        val dataSpec = currentDataSpec ?: return
-        
-        // Resilience: Do not attempt to open a chunk if no bytes are remaining
-        if (bytesRemaining != C.LENGTH_UNSET.toLong() && bytesRemaining <= 0) {
-            return
-        }
-
-        val chunkSize = calculateDynamicChunkSize()
-        val chunkLength = if (bytesRemaining == C.LENGTH_UNSET.toLong()) {
-            chunkSize
-        } else {
-            chunkSize.coerceAtMost(bytesRemaining)
-        }
-
-        if (chunkLength <= 0 && bytesRemaining != C.LENGTH_UNSET.toLong()) return
-
-        val chunkSpec = dataSpec.buildUpon()
-            .setPosition(currentPosition)
-            .setLength(chunkLength)
-            .build()
 
         try {
-            upstream.close()
-            upstream.open(chunkSpec)
-            PTLog.d("SABRDataSource", "Opening chunk at $currentPosition, length $chunkLength. Bitrate: ${bandwidthMeter.bitrateEstimate}")
+            val bytes = upstream.open(dataSpec)
+            bytesRemaining = bytes
+            PTLog.d("SABRDataSource", "Opened stream at ${dataSpec.position}, bytesRemaining=$bytes")
+            return bytes
         } catch (e: Exception) {
-            PTLog.e("SABRDataSource", "Failed to open chunk", e)
+            PTLog.e("SABRDataSource", "Failed to open stream at ${dataSpec.position}", e)
             throw e
         }
     }
@@ -90,18 +52,7 @@ class SABRDataSource(
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (!opened) return C.RESULT_END_OF_INPUT
 
-        var bytesRead = upstream.read(buffer, offset, length)
-        
-        if (bytesRead == C.RESULT_END_OF_INPUT) {
-            // Chunk finished, check if we need to open next one
-            if (bytesRemaining != C.LENGTH_UNSET.toLong() && bytesRemaining <= 0) {
-                return C.RESULT_END_OF_INPUT
-            }
-            
-            openNextChunk()
-            bytesRead = upstream.read(buffer, offset, length)
-        }
-
+        val bytesRead = upstream.read(buffer, offset, length)
         if (bytesRead != C.RESULT_END_OF_INPUT) {
             currentPosition += bytesRead
             if (bytesRemaining != C.LENGTH_UNSET.toLong()) {

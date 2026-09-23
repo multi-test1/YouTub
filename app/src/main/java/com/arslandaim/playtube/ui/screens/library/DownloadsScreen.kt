@@ -240,7 +240,8 @@ fun DownloadsScreen(
 
                 playlistsGroup.forEach { (playlistId, playlistVideos) ->
                     item {
-                        val title = playlistVideos.firstOrNull()?.playlistTitle ?: "Playlist"
+                        val defaultPlaylistTitle = stringResource(R.string.playlist)
+                        val title = playlistVideos.firstOrNull()?.playlistTitle ?: defaultPlaylistTitle
                         val isExpanded = expandedPlaylistId == playlistId
                         
                         PlaylistDownloadRow(

@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import com.arslandaim.playtube.R
 import com.arslandaim.playtube.data.local.*
 import com.arslandaim.playtube.di.ApplicationScope
 import com.arslandaim.playtube.domain.model.*
@@ -92,6 +93,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _isAutoplayEnabled = MutableStateFlow(true)
     val isAutoplayEnabled: StateFlow<Boolean> = _isAutoplayEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(RepeatMode.PLAY_NEXT)
+    val repeatMode: StateFlow<RepeatMode> = _repeatMode.asStateFlow()
 
     val sleepTimerRemainingTime: StateFlow<Int?> = sleepTimerManager.remainingTime
     val shouldCloseAppOnTimerFinish: StateFlow<Boolean> = sleepTimerManager.shouldCloseApp
@@ -251,7 +255,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             playbackManager.playbackEnded.collect {
                 saveWatchProgress()
-                if (_isAutoplayEnabled.value && !sleepTimerManager.isTimerActive()) {
+                if (_repeatMode.value == RepeatMode.PLAY_NEXT && !sleepTimerManager.isTimerActive()) {
                     playNext()
                 }
             }
@@ -301,6 +305,13 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesManager.isAutoplayEnabled.collect { _isAutoplayEnabled.value = it }
         }
+        viewModelScope.launch {
+            preferencesManager.repeatMode.collect { savedMode ->
+                val mode = try { RepeatMode.valueOf(savedMode) } catch (e: Exception) { RepeatMode.PLAY_NEXT }
+                _repeatMode.value = mode
+                playbackManager.player.repeatMode = if (mode == RepeatMode.REPEAT_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            }
+        }
 
         // Network recovery
         viewModelScope.launch {
@@ -319,7 +330,7 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             playbackManager.onSponsorSkipped.collect { segment ->
-                _snackbarMessage.emit("Skipped ${segment.category}")
+                _snackbarMessage.emit(context.getString(R.string.skipped_segment, segment.category))
             }
         }
     }
@@ -454,12 +465,7 @@ class PlayerViewModel @Inject constructor(
                 syncSubtitles(bundle)
                 
                 val preferred = preferredQuality.value
-                val stream = if (preferred == "Auto") {
-                    selectAutoQuality(bundle.videoStreams)
-                } else {
-                    bundle.videoStreams.find { it.quality == preferred } 
-                        ?: selectAutoQuality(bundle.videoStreams)
-                }
+                val stream = selectBestMatchingQuality(bundle.videoStreams, preferred)
 
                 stream?.let {
                     if (!isSameVideo || playbackManager.player.playbackState == Player.STATE_IDLE) {
@@ -484,6 +490,26 @@ class PlayerViewModel @Inject constructor(
             viewModelScope.launch { playbackManager.player.seekTo(getResumePosition(videoId)) }
         }
         _currentQuality.value = "Local (${downloadedVideo.quality})"
+
+        // Populate downloaded videos playlist stack if no active online playlist
+        viewModelScope.launch {
+            val completedDownloads = withContext(Dispatchers.IO) {
+                downloadRepository.getAllDownloads().first().filter { it.status == DownloadStatus.COMPLETED }
+            }
+            if (completedDownloads.isNotEmpty() && (_currentPlaylist.value == null || _currentPlaylist.value?.id == "downloads")) {
+                val downloadedVideos = completedDownloads.map { it.toVideoItem() }
+                val downloadedPlaylist = PlaylistDetails(
+                    id = "downloads",
+                    title = context.getString(R.string.downloaded_videos),
+                    uploaderName = context.getString(R.string.offline_downloads),
+                    uploaderUrl = null,
+                    thumbnailUrl = downloadedVideo.thumbnailUrl,
+                    videos = downloadedVideos
+                )
+                _currentPlaylist.value = downloadedPlaylist
+                updatePlaylistIndex()
+            }
+        }
     }
 
     private fun resetPlaybackState(videoId: String, video: VideoItem, keepPlaylist: Boolean = false) {
@@ -539,7 +565,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             val isFav = libraryRepository.isFavorite(target.id).first()
             toggleFavoriteUseCase(FavoriteEntity(videoId = target.id, title = target.title, thumbnailUrl = target.thumbnailUrl, uploaderName = target.uploaderName))
-            _snackbarMessage.emit(if (isFav) "Removed from Liked Videos" else "Added to Liked Videos")
+            _snackbarMessage.emit(if (isFav) context.getString(R.string.removed_from_favorites) else context.getString(R.string.added_to_favorites))
         }
     }
 
@@ -566,7 +592,7 @@ class PlayerViewModel @Inject constructor(
             isStalledDueToNetwork = playbackManager.player.playWhenReady
             _isRecovering.value = isStalledDueToNetwork
             if (_uiState.value !is PlayerUiState.Success) _uiState.value = PlayerUiState.Error(PlayTubeError.Network)
-            else viewModelScope.launch { _snackbarMessage.emit("Connection lost. Waiting to resume...") }
+            else viewModelScope.launch { _snackbarMessage.emit(context.getString(R.string.connection_lost_waiting)) }
             scheduleRetry()
         } else {
             _uiState.value = PlayerUiState.Error(PlayTubeError.fromThrowable(error))
@@ -632,12 +658,7 @@ class PlayerViewModel @Inject constructor(
                 syncSubtitles(bundle)
                 
                 val preferred = preferredQuality.value
-                val stream = if (preferred == "Auto") {
-                    selectAutoQuality(bundle.videoStreams)
-                } else {
-                    bundle.videoStreams.find { it.quality == preferred } 
-                        ?: selectAutoQuality(bundle.videoStreams)
-                }
+                val stream = selectBestMatchingQuality(bundle.videoStreams, preferred)
 
                 stream?.let {
                     // Phase 3: Seamless Hot-Swap Recovery
@@ -781,18 +802,85 @@ class PlayerViewModel @Inject constructor(
             else -> sortedStreams.firstOrNull()
         } ?: sortedStreams.findLast { it.quality.contains("480") } ?: sortedStreams.firstOrNull()
     }
+
+    private fun selectBestMatchingQuality(streams: List<StreamItem>, preferred: String): StreamItem? {
+        if (streams.isEmpty()) return null
+        if (preferred == "Auto") return selectAutoQuality(streams)
+
+        val targetHeight = preferred.filter { it.isDigit() }.toIntOrNull()
+            ?: return selectAutoQuality(streams)
+
+        val streamsWithHeight = streams.map { stream ->
+            val height = stream.quality.filter { it.isDigit() }.toIntOrNull() ?: 0
+            stream to height
+        }
+
+        // 1. Try exact height match (e.g. preferred "1080p", stream has "1080p60")
+        val exactMatch = streamsWithHeight.find { it.second == targetHeight }
+        if (exactMatch != null) return exactMatch.first
+
+        // 2. Highest resolution <= targetHeight (e.g. preferred 1080p, max video quality 720p)
+        val highestLowerOrEqual = streamsWithHeight
+            .filter { it.second in 1..targetHeight }
+            .maxByOrNull { it.second }
+        if (highestLowerOrEqual != null) return highestLowerOrEqual.first
+
+        // 3. Lowest resolution > targetHeight if all available streams exceed targetHeight
+        val lowestHigher = streamsWithHeight
+            .filter { it.second > targetHeight }
+            .minByOrNull { it.second }
+        if (lowestHigher != null) return lowestHigher.first
+
+        return selectAutoQuality(streams)
+    }
+
     fun setSubtitlesEnabled(enabled: Boolean) { _isCcEnabled.value = enabled; playbackManager.updateCcState(enabled, _selectedSubtitleLanguage.value); viewModelScope.launch { preferencesManager.setSubtitlesEnabled(enabled) } }
     fun setSubtitleLanguage(lang: String?) { viewModelScope.launch { if (lang == null) setSubtitlesEnabled(false) else { _isCcEnabled.value = true; _selectedSubtitleLanguage.value = lang; playbackManager.updateCcState(true, lang); preferencesManager.setSubtitlesEnabled(true); preferencesManager.setPreferredSubtitleLanguage(lang) } } }
     fun setAutoplayEnabled(enabled: Boolean) { _isAutoplayEnabled.value = enabled; viewModelScope.launch { preferencesManager.setAutoplayEnabled(enabled) } }
     
+    fun setRepeatMode(mode: RepeatMode) {
+        _repeatMode.value = mode
+        playbackManager.player.repeatMode = if (mode == RepeatMode.REPEAT_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        viewModelScope.launch { preferencesManager.setRepeatMode(mode.name) }
+    }
+
+    fun cycleRepeatMode() {
+        val nextMode = when (_repeatMode.value) {
+            RepeatMode.OFF -> RepeatMode.REPEAT_ONE
+            RepeatMode.REPEAT_ONE -> RepeatMode.PLAY_NEXT
+            RepeatMode.PLAY_NEXT -> RepeatMode.OFF
+        }
+        setRepeatMode(nextMode)
+    }
+    
+    private var pendingSeekTargetMs: Long? = null
+
     fun performSeek(forward: Boolean) {
         seekJob?.cancel()
-        if (_isSeekForward.value != forward || !_showSeekFeedback.value) _seekAmount.value = 10 else _seekAmount.value += 10
+        val currentPos = playbackManager.player.currentPosition
+        if (_isSeekForward.value != forward || !_showSeekFeedback.value) {
+            _seekAmount.value = 10
+            pendingSeekTargetMs = currentPos
+        } else {
+            _seekAmount.value += 10
+        }
         _isSeekForward.value = forward
         _showSeekFeedback.value = true
-        val targetPos = (playbackManager.player.currentPosition + if (forward) 10000L else -10000L).coerceAtLeast(0L)
-        playbackManager.seekTo(targetPos)
-        seekJob = viewModelScope.launch { delay(800); _showSeekFeedback.value = false; _seekAmount.value = 0; saveWatchProgress() }
+
+        val basePos = pendingSeekTargetMs ?: currentPos
+        val targetPos = (basePos + if (forward) 10000L else -10000L).coerceAtLeast(0L)
+        pendingSeekTargetMs = targetPos
+
+        seekJob = viewModelScope.launch {
+            delay(400)
+            pendingSeekTargetMs?.let { pos ->
+                playbackManager.seekTo(pos)
+                saveWatchProgress()
+            }
+            _showSeekFeedback.value = false
+            _seekAmount.value = 0
+            pendingSeekTargetMs = null
+        }
     }
     private var seekJob: Job? = null
     fun seekForward() = performSeek(true)
@@ -899,8 +987,12 @@ class PlayerViewModel @Inject constructor(
         val playlist = _currentPlaylist.value
         val index = _playlistIndex.value
         
-        if (playlist != null && index != -1 && index < playlist.videos.size - 1) {
-            loadVideo(playlist.videos[index + 1], playlist.id, playlist.title)
+        if (playlist != null && index != -1) {
+            if (index < playlist.videos.size - 1) {
+                loadVideo(playlist.videos[index + 1], playlist.id, playlist.title)
+            } else if (_repeatMode.value == RepeatMode.PLAY_NEXT && playlist.videos.isNotEmpty()) {
+                loadVideo(playlist.videos[0], playlist.id, playlist.title)
+            }
         } else if (playbackManager.player.hasNextMediaItem()) {
             playbackManager.player.seekToNextMediaItem()
         } else {
@@ -917,7 +1009,7 @@ class PlayerViewModel @Inject constructor(
         } else if (playlist != null && index != -1 && index > 0) {
             loadVideo(playlist.videos[index - 1], playlist.id, playlist.title)
         } else {
-            _snackbarMessage.tryEmit("No previous video in session")
+            _snackbarMessage.tryEmit(context.getString(R.string.no_previous_video))
         }
     }
 
@@ -1069,7 +1161,7 @@ class PlayerViewModel @Inject constructor(
                 (compatible.filter { it.trackType == "ORIGINAL" }.maxByOrNull { it.quality.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 } ?: compatible.maxByOrNull { it.quality.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 })?.url
             } else null
             downloadVideoUseCase(videoId = video.id, url = url, title = video.title, thumbnailUrl = video.thumbnailUrl, uploaderName = video.uploaderName, quality = quality, format = format, audioUrl = audioUrl)
-            _snackbarMessage.emit("Downloading started")
+            _snackbarMessage.emit(context.getString(R.string.downloading_started))
             _downloadState.value = DownloadDialogState.Idle
         }
     }
@@ -1085,6 +1177,12 @@ class PlayerViewModel @Inject constructor(
         _activeReplyParent.value = null
         super.onCleared()
     }
+}
+
+enum class RepeatMode {
+    OFF,
+    REPEAT_ONE,
+    PLAY_NEXT
 }
 
 sealed interface PlayerUiState {

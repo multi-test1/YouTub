@@ -18,6 +18,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -101,14 +102,14 @@ fun PlayerOverlay(
     // Persistent horizontal position for the mini-player pill
     var persistentMiniPlayerOffsetX by rememberSaveable { mutableFloatStateOf(defaultMiniX) }
 
-    // Visual feedback states
+    val dismissalThresholdPx = with(density) { 60.dp.toPx() }
+
+    // Visual feedback states: only trigger dismissal feedback in the middle 50% bottom area
     val isNearDismissalZone = remember(offsetY, persistentMiniPlayerOffsetX, offsetX) {
         if (isExpanded) false else {
             val currentAbsoluteX = persistentMiniPlayerOffsetX + offsetX
             val playerCenterAbsoluteX = currentAbsoluteX + (miniPlayerWidthPx / 2f)
-            val middleZoneStart = screenWidth * 0.3f
-            val middleZoneEnd = screenWidth * 0.7f
-            offsetY > with(density) { 50.dp.toPx() } && playerCenterAbsoluteX in middleZoneStart..middleZoneEnd
+            offsetY > dismissalThresholdPx && playerCenterAbsoluteX in (screenWidth * 0.25f)..(screenWidth * 0.75f)
         }
     }
 
@@ -120,22 +121,12 @@ fun PlayerOverlay(
     }
 
     // Target offset and scale based on state
-    // We want the mini-player to sit above the new floating bottom bar.
-    // The bottom bar has 20.dp bottom padding + 64.dp height + 8.dp gap.
     val bottomBarSpacing = if (bottomBarHeight > 0.dp) bottomBarHeight + 28.dp else 16.dp
     val targetY = if (isExpanded) 0f else screenHeight - with(density) { (navBarHeight + bottomBarSpacing + miniPlayerHeight).toPx() }
-    
-    // X is either 0 (full screen) or the persistent offset (mini)
     val targetX = if (isExpanded) 0f else persistentMiniPlayerOffsetX
-    
-    val targetScale = when {
-        isExpanded -> 1f
-        isNearDismissalZone -> 0.85f // Scale down to indicate dismissal
-        else -> 1f
-    }
 
-    val animatedY by animateFloatAsState(
-        targetValue = targetY + offsetY,
+    val animatedTargetY by animateFloatAsState(
+        targetValue = targetY,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy),
         label = "PlayerY",
         finishedListener = {
@@ -145,16 +136,26 @@ fun PlayerOverlay(
         }
     )
 
-    val animatedX by animateFloatAsState(
-        targetValue = targetX + offsetX,
+    val animatedTargetX by animateFloatAsState(
+        targetValue = targetX,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "PlayerX"
     )
 
     val animatedScale by animateFloatAsState(
-        targetValue = targetScale,
+        targetValue = when {
+            isExpanded -> 1f
+            isNearDismissalZone -> 0.88f
+            else -> 1f
+        },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "PlayerScale"
+    )
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isNearDismissalZone) 0.75f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "PlayerAlpha"
     )
 
     Box(
@@ -176,10 +177,11 @@ fun PlayerOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset { IntOffset(0, animatedY.roundToInt()) }
                     .graphicsLayer {
+                        translationY = animatedTargetY + offsetY
                         scaleX = animatedScale
                         scaleY = animatedScale
+                        alpha = animatedAlpha
                     }
                     .pointerInput(isExpanded) {
                         detectDragGestures(
@@ -218,11 +220,12 @@ fun PlayerOverlay(
                 modifier = Modifier
                     .width(miniPlayerWidth)
                     .height(miniPlayerHeight)
-                    .offset { IntOffset(animatedX.roundToInt(), animatedY.roundToInt()) }
                     .graphicsLayer {
+                        translationX = animatedTargetX + offsetX
+                        translationY = animatedTargetY + offsetY
                         scaleX = animatedScale
                         scaleY = animatedScale
-                        alpha = if (isNearDismissalZone) 0.7f else 1f
+                        alpha = animatedAlpha
                     }
                     .pointerInput(Unit) {
                         detectDragGestures(
@@ -241,30 +244,19 @@ fun PlayerOverlay(
                             onDragEnd = {
                                 val currentAbsoluteX = targetX + offsetX
                                 val playerCenterAbsoluteX = currentAbsoluteX + (miniPlayerWidthPx / 2f)
+                                val isInMiddleZone = playerCenterAbsoluteX in (screenWidth * 0.25f)..(screenWidth * 0.75f)
+
+                                val verticalThreshold = with(density) { 60.dp.toPx() }
+                                val upThreshold = with(density) { 80.dp.toPx() }
                                 
-                                val verticalThreshold = with(density) { 120.dp.toPx() }
-                                
-                                // Determine action
-                                var actionTriggered = false
-                                if (offsetY < -verticalThreshold) {
-                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                if (offsetY < -upThreshold) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onMaximize()
-                                    actionTriggered = true
-                                } else if (offsetY > verticalThreshold) {
-                                    // Close only if swiped down in the middle 40% of the screen
-                                    val middleZoneStart = screenWidth * 0.3f
-                                    val middleZoneEnd = screenWidth * 0.7f
-                                    if (playerCenterAbsoluteX in middleZoneStart..middleZoneEnd) {
-                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                        onClose()
-                                        actionTriggered = true
-                                    }
-                                }
-                                
-                                // Commit horizontal position if no vertical action was taken
-                                if (!actionTriggered) {
-                                    val finalX = targetX + offsetX
-                                    persistentMiniPlayerOffsetX = finalX.coerceIn(
+                                } else if (offsetY > verticalThreshold && isInMiddleZone) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onClose()
+                                } else {
+                                    persistentMiniPlayerOffsetX = (targetX + offsetX).coerceIn(
                                         horizontalMarginPx, 
                                         screenWidth - miniPlayerWidthPx - horizontalMarginPx
                                     )

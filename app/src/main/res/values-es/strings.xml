@@ -190,4 +190,18 @@
     <string name="error_malformed_history">Archivo de historial con formato incorrecto</string>
     <string name="error_malformed_csv">Archivo de suscripciones con formato incorrecto</string>
     <string name="importing_items">Se importaron %d elementos...</string>
+
+    <!-- Player Action & Repeat Modes -->
+    <string name="repeat_off">Repetición desactivada</string>
+    <string name="repeat_one">Repetir 1</string>
+    <string name="repeat_play_next">Reproducción automática</string>
+    <string name="repeat_mode">Modo de repetición</string>
+    <string name="downloaded_videos">Videos descargados</string>
+    <string name="offline_downloads">Descargas sin conexión</string>
+    <string name="added_to_favorites">Añadido a Videos que me gustan</string>
+    <string name="removed_from_favorites">Eliminado de Videos que me gustan</string>
+    <string name="downloading_started">Descarga iniciada</string>
+    <string name="connection_lost_waiting">Conexión perdida. Esperando para reanudar...</string>
+    <string name="no_previous_video">No hay video anterior en la sesión</string>
+    <string name="skipped_segment">Se omitió %s</string>
 </resources>

@@ -187,4 +187,18 @@
     <string name="error_malformed_history">Nieprawidłowy format pliku historii</string>
     <string name="error_malformed_csv">Nieprawidłowy format pliku subskrypcji</string>
     <string name="importing_items">Zaimportowano %d elementów...</string>
+
+    <!-- Player Action & Repeat Modes -->
+    <string name="repeat_off">Powtarzanie wyłączone</string>
+    <string name="repeat_one">Powtórz 1</string>
+    <string name="repeat_play_next">Autoodtwarzanie</string>
+    <string name="repeat_mode">Tryb powtarzania</string>
+    <string name="downloaded_videos">Pobrane filmy</string>
+    <string name="offline_downloads">Pobrania offline</string>
+    <string name="added_to_favorites">Dodano do polubionych filmów</string>
+    <string name="removed_from_favorites">Usunięto z polubionych filmów</string>
+    <string name="downloading_started">Pobieranie rozpoczęte</string>
+    <string name="connection_lost_waiting">Połączenie utracone. Czekam na wznowienie...</string>
+    <string name="no_previous_video">Brak poprzedniego filmu w sesji</string>
+    <string name="skipped_segment">Pominięto %s</string>
 </resources>

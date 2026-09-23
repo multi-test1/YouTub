@@ -45,13 +45,21 @@ fun PlayTubeTopAppBar(
         windowInsets = WindowInsets(0, 0, 0, 0),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = buildAnnotatedString {
                         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
@@ -103,7 +111,7 @@ fun PlayTubeTopAppBar(
             IconButton(onClick = { mainViewModel.toggleIncognitoMode() }) {
                 Icon(
                     imageVector = if (isIncognitoMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = "Incognito Mode",
+                    contentDescription = stringResource(R.string.incognito_label),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
                 )

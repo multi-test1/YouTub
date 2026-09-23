@@ -228,6 +228,7 @@ open class PreferencesManager @Inject constructor(@ApplicationContext context: C
     open val isProxyEnabled: Flow<Boolean> = dataStore.data.map { it[PROXY_ENABLED] ?: false }
     open val proxyHost: Flow<String> = dataStore.data.map { it[PROXY_HOST] ?: "" }
     open val proxyPort: Flow<Int> = dataStore.data.map { it[PROXY_PORT] ?: 8080 }
+    open val repeatMode: Flow<String> = dataStore.data.map { it[REPEAT_MODE] ?: "PLAY_NEXT" }
 
     suspend fun setHistoryEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
@@ -365,6 +366,12 @@ open class PreferencesManager @Inject constructor(@ApplicationContext context: C
         }
     }
 
+    suspend fun setRepeatMode(mode: String) {
+        dataStore.edit { preferences ->
+            preferences[REPEAT_MODE] = mode
+        }
+    }
+
     suspend fun setProxySettings(enabled: Boolean, host: String, port: Int) {
         dataStore.edit { preferences ->
             preferences[PROXY_ENABLED] = enabled
@@ -400,6 +407,7 @@ open class PreferencesManager @Inject constructor(@ApplicationContext context: C
 
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val PLAYBACK_PITCH = floatPreferencesKey("playback_pitch")
+        val REPEAT_MODE = stringPreferencesKey("repeat_mode")
 
         val PROXY_ENABLED = booleanPreferencesKey("proxy_enabled")
         val PROXY_HOST = stringPreferencesKey("proxy_host")

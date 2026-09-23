@@ -107,6 +107,8 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -153,7 +155,7 @@ fun PlayerScreen(
     val isRecovering by viewModel.isRecovering.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val isIncognito by viewModel.isIncognitoMode.collectAsStateWithLifecycle()
-    val isAutoplayEnabled by viewModel.isAutoplayEnabled.collectAsStateWithLifecycle()
+    val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val preferredQuality by viewModel.preferredQuality.collectAsStateWithLifecycle()
     val sleepTimerRemainingTime by viewModel.sleepTimerRemainingTime.collectAsStateWithLifecycle()
     val shouldCloseAppOnTimerFinish by viewModel.shouldCloseAppOnTimerFinish.collectAsStateWithLifecycle()
@@ -269,8 +271,8 @@ fun PlayerScreen(
             onChannelClick = onChannelClick,
             onAddToPlaylistClick = onAddToPlaylistClick,
             onRetry = { viewModel.currentVideoItem?.let { viewModel.loadVideo(it) } },
-            isAutoplayEnabled = isAutoplayEnabled,
-            onAutoplayChange = viewModel::setAutoplayEnabled,
+            repeatMode = repeatMode,
+            onRepeatClick = viewModel::cycleRepeatMode,
             sleepTimerRemainingTime = sleepTimerRemainingTime,
             shouldCloseAppOnTimerFinish = shouldCloseAppOnTimerFinish,
             onStartSleepTimer = viewModel.sleepTimerManager::startTimer,
@@ -362,8 +364,8 @@ private fun PlayerContent(
     onChannelClick: (String) -> Unit,
     onAddToPlaylistClick: (VideoItem) -> Unit,
     onRetry: () -> Unit,
-    isAutoplayEnabled: Boolean,
-    onAutoplayChange: (Boolean) -> Unit,
+    repeatMode: RepeatMode,
+    onRepeatClick: () -> Unit,
     sleepTimerRemainingTime: Int?,
     shouldCloseAppOnTimerFinish: Boolean,
     onStartSleepTimer: (Int) -> Unit,
@@ -1016,12 +1018,14 @@ private fun PlayerContent(
                                     isLive = isLive,
                                     isCcEnabled = isCcEnabled,
                                     isIncognito = isIncognito,
+                                    repeatMode = repeatMode,
                                     hasSubtitles = (uiState as? PlayerUiState.Success)?.bundle?.subtitles?.isNotEmpty() == true,
                                     isAspectRatioEnabled = isLandscape,
                                     onPlayPause = onPlayPause,
                                     onSkipNext = onSkipNext,
                                     onSkipPrevious = onSkipPrevious,
                                     onToggleSubtitles = onToggleSubtitles,
+                                    onRepeatClick = onRepeatClick,
                                     onShowSubtitleSettings = { showSubtitleSheet = true },
                                     onShowSettings = { showSettingsSheet = true },
                                     onToggleAspectRatio = { cycleAspectRatio() },
@@ -1156,6 +1160,7 @@ private fun PlayerContent(
                                         isFavorite = isFavorite,
                                         isSaved = isSaved,
                                         isDownloaded = downloadedIds.contains(videoId),
+                                        repeatMode = repeatMode,
                                         comments = comments,
                                         commentCount = null, // Extractor doesn't always provide count easily
                                         onToggleSubscription = onToggleSubscription,
@@ -1178,6 +1183,7 @@ private fun PlayerContent(
                                         },
                                         onDownloadClick = { if (!downloadedIds.contains(videoId)) onDownloadClick(null) },
                                         onShareClick = onShareVideo,
+                                        onRepeatClick = onRepeatClick,
                                         onChannelClick = onChannelClick,
                                         onCommentsClick = { showCommentsSheet = true }
                                     )
@@ -1187,8 +1193,6 @@ private fun PlayerContent(
                                     relatedVideos = uiState.bundle.relatedVideos,
                                     downloadedIds = downloadedIds,
                                     favoriteIds = favoriteIds,
-                                    isAutoplayEnabled = isAutoplayEnabled,
-                                    onAutoplayChange = onAutoplayChange,
                                     onVideoClick = onVideoClick,
                                     onChannelClick = onChannelClick,
                                     onFavoriteClick = { onToggleFavorite(it) },
@@ -1211,6 +1215,7 @@ private fun PlayerContent(
                                         isFavorite = isFavorite,
                                         isSaved = isSaved,
                                         isDownloaded = false,
+                                        repeatMode = repeatMode,
                                         comments = emptyList(),
                                         commentCount = null,
                                         onToggleSubscription = onToggleSubscription,
@@ -1231,6 +1236,7 @@ private fun PlayerContent(
                                         },
                                         onDownloadClick = { },
                                         onShareClick = onShareVideo,
+                                        onRepeatClick = onRepeatClick,
                                         onChannelClick = onChannelClick,
                                         onCommentsClick = { }
                                     )
@@ -1370,12 +1376,14 @@ private fun PlayerControlsOverlay(
     isLive: Boolean,
     isCcEnabled: Boolean,
     isIncognito: Boolean,
+    repeatMode: RepeatMode,
     hasSubtitles: Boolean,
     isAspectRatioEnabled: Boolean = true,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
     onToggleSubtitles: () -> Unit,
+    onRepeatClick: () -> Unit,
     onShowSubtitleSettings: () -> Unit,
     onShowSettings: () -> Unit,
     onToggleAspectRatio: () -> Unit,
@@ -1538,7 +1546,7 @@ private fun PlayerControlsOverlay(
                         Icon(Icons.Default.VisibilityOff, null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Incognito", 
+                            text = stringResource(R.string.incognito_label), 
                             color = Color.White, 
                             style = MaterialTheme.typography.labelSmall, 
                             fontWeight = FontWeight.Bold
@@ -1556,6 +1564,22 @@ private fun PlayerControlsOverlay(
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onRepeatClick,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (repeatMode == RepeatMode.REPEAT_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                            contentDescription = stringResource(R.string.repeat_mode),
+                            tint = when (repeatMode) {
+                                RepeatMode.OFF -> Color.White.copy(alpha = 0.38f)
+                                RepeatMode.REPEAT_ONE -> MaterialTheme.colorScheme.primary
+                                RepeatMode.PLAY_NEXT -> Color.White
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
                     if (hasSubtitles) {
                         IconButton(
                             onClick = onToggleSubtitles,
