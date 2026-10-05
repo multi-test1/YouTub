@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.arslandaim.playtube"
+    namespace = "com.youtub"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.arslandaim.playtube"
+        applicationId = "com.youtub"
         minSdk = 24
         targetSdk = 36
 
@@ -103,6 +103,10 @@ dependencies {
 
     // NewPipe Extractor
     implementation(libs.newpipe.extractor)
+
+    // FFmpeg (from PipePipe - for download muxing)
+    implementation(project(":ffmpeg"))
+    implementation("com.arthenica:smart-exception-java:0.2.1")
 
     // OkHttp
     implementation(libs.okhttp)

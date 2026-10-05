@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
@@ -12,7 +14,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:name=".PlayTubeApp"
+        android:name=".YouTubApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -22,7 +24,7 @@
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
         android:localeConfig="@xml/locales_config"
-        android:theme="@style/Theme.PlayTube">
+        android:theme="@style/Theme.YouTub">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -82,6 +84,11 @@
 
         <service
             android:name=".services.VideoDownloadService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name="us.shandian.giga.service.DownloadManagerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

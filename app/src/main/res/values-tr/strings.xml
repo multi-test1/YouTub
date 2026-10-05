@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PlayTube</string>
+    <string name="app_name">YouTub</string>
 
     <!-- General -->
     <string name="retry">Yeniden Dene</string>
@@ -85,7 +85,7 @@
     <string name="delete_download_desc">Bu indirilmiş videoyu silmek istediğinizden emin misiniz?</string>
 
     <!-- Search -->
-    <string name="search_placeholder">PlayTube\'da Ara</string>
+    <string name="search_placeholder">YouTub\'da Ara</string>
     <string name="discover_new">Yeni bir şeyler keşfet</string>
     <string name="recent_searches">Son aramalar</string>
     <string name="clear_all">Tümünü temizle</string>
@@ -124,7 +124,7 @@
     <string name="duration">Süre</string>
     <string name="apply">Uygula</string>
     <string name="close_app_on_finish">Bittiğinde uygulamayı kapat</string>
-    <string name="close_app_desc">PlayTube\'u kapatarak pil tasarrufu yapın</string>
+    <string name="close_app_desc">YouTub\'u kapatarak pil tasarrufu yapın</string>
     <string name="timer_minutes_placeholder">%d dakika</string>
     <string name="subtitles">Altyazılar</string>
     <string name="off">Kapalı</string>

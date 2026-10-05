@@ -8,4 +8,4 @@ WHAT'S NEW IN (v1.3.0)
 - Improved search result sorting and accuracy.
 - Performance improvements, smoother scrolling, and bug fixes.
 
-PlayTube is now faster, smarter, and more responsive. More features and improvements are on the way.
+YouTub is now faster, smarter, and more responsive. More features and improvements are on the way.

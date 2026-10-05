@@ -1,4 +1,4 @@
-PlayTube is a fast, private, and feature-rich YouTube client for Android.
+YouTub is a fast, private, and feature-rich YouTube client for Android.
 
 Key Features:
 - Fluid Glass UI.
@@ -11,4 +11,4 @@ Key Features:
 - Push up & down to enable/disable fullscreen mode.
 - Subscription Management.
 
-PlayTube eliminates software bloat to ensure a lightweight, efficient video playback experience with modern app design.
+YouTub eliminates software bloat to ensure a lightweight, efficient video playback experience with modern app design.

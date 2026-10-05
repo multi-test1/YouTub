@@ -1,4 +1,4 @@
-# PlayTube Release ProGuard Rules
+# YouTub Release ProGuard Rules
 
 # 1. NewPipe Extractor (Critical: uses reflection for many things)
 -keep class org.schabi.newpipe.extractor.** { *; }
@@ -39,11 +39,11 @@
 # 8. JSOUP (Often used by NewPipe)
 -keep class org.jsoup.** { *; }
 
-# 9. PlayTube Models & Navigation (Keep data models, repository backup classes, and navigation)
--keep class com.arslandaim.playtube.domain.model.** { *; }
--keep class com.arslandaim.playtube.data.** { *; }
--keep class com.arslandaim.playtube.ui.navigation.** { *; }
--keepclassmembers class com.arslandaim.playtube.ui.navigation.** { *; }
+# 9. YouTub Models & Navigation (Keep data models, repository backup classes, and navigation)
+-keep class com.youtub.domain.model.** { *; }
+-keep class com.youtub.data.** { *; }
+-keep class com.youtub.ui.navigation.** { *; }
+-keepclassmembers class com.youtub.ui.navigation.** { *; }
 
 # 10. Missing classes detected by R8
 -dontwarn java.beans.BeanDescriptor
