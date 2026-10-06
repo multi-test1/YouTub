@@ -65,7 +65,8 @@ object YouTubDownloadBridge {
                 downloadedSize = mission.downloadedBytes,
                 status = DownloadStatus.DOWNLOADING,
                 quality = mission.quality,
-                format = mission.format
+                format = mission.format,
+                videoUrl = mission.videoUrl
             )
             Log.i(TAG, "Requested download start: ${describe(preview, mission)}")
         } catch (e: Exception) {
