@@ -158,7 +158,7 @@ fun YouTubDownloadDialog(
  */
 private val StreamItem.qualityLabel: String?
     get() = when {
-        !resolution.isNullOrEmpty() -> "$resolution (${format ?: "unknown"})"
-        !format.isNullOrEmpty() -> format
+        quality.isNotEmpty() -> "$quality ($format)"
+        format.isNotEmpty() -> format
         else -> null
     }

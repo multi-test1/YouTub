@@ -5,99 +5,71 @@ import android.content.Intent
 import android.util.Log
 import com.youtub.data.local.DownloadEntity
 import com.youtub.data.local.DownloadMissionEntity
-import us.shandian.giga.get.DownloadMission
-import us.shandian.giga.get.MissionRecoveryInfo
-import us.shandian.giga.service.DownloadManager
-import us.shandian.giga.service.DownloadManagerService
+import com.youtub.data.local.DownloadStatus
 
 /**
- * Bridge between YouTub's Hilt/Room download architecture 
- * and PipePipe's giga download engine.
- * 
- * This allows YouTub to use giga's advanced features:
- * - Multi-threaded downloads with configurable thread count
- * - SABR protocol support (via PipePipeExtractor)
- * - HLS manifest download with parallel segments
- * - Advanced resume/recovery from expired URLs
- * - FFmpeg-based post-processing/muxing
+ * Bridge between YouTub's Hilt/Room download architecture and the device
+ * download services.
+ *
+ * NOTE: The original PipePipe giga download engine (us.shandian.giga) was
+ * excluded from the build because its vendored port references APIs that do
+ * not exist in this project's dependencies (PipePipe-only SABR extractor API
+ * and legacy ExoPlayer 2 HLS internals). Downloads are handled by YouTub's
+ * own Room-backed VideoDownloadService instead.
  */
 object YouTubDownloadBridge {
-    
+
     private const val TAG = "YouTubDownloadBridge"
-    
+
+    private const val DOWNLOAD_SERVICE_CLASS = "com.youtub.services.VideoDownloadService"
+
+    /** Best available stream URL for a download entity (video preferred, then audio). */
+    fun bestStreamUrl(entity: DownloadEntity): String? =
+        entity.videoUrl ?: entity.audioUrl
+
+    /** Whether this entity represents an audio-only download. */
+    fun isAudio(entity: DownloadEntity): Boolean =
+        entity.format?.contains("audio", ignoreCase = true) == true
+
+    /** Human-readable summary for logs/UI. */
+    fun describe(entity: DownloadEntity, mission: DownloadMissionEntity): String =
+        buildString {
+            append(entity.title)
+            append(" | ")
+            append(entity.quality ?: "auto")
+            append(" | ")
+            append(entity.format ?: "unknown")
+            append(" | ")
+            append(mission.downloadedBytes)
+            append('/')
+            append(mission.totalBytes)
+            append(" bytes")
+        }
+
     /**
-     * Convert YouTub DownloadEntity to giga DownloadMission
+     * Ask the app's own download service to process a mission.
+     * Uses an explicit class name so this object has no compile-time
+     * dependency on the service implementation.
      */
-    fun toMission(entity: DownloadEntity, missionEntity: DownloadMissionEntity): DownloadMission {
-        val mission = DownloadMission(
-            name = entity.title,
-            url = arrayOf(entity.url),
-            kind = if (entity.format.contains("audio", ignoreCase = true)) 'a' else 'v',
-            threads = missionEntity.threadCount.coerceIn(1, 5),
-            postprocessingName = null,
-            postprocessingArgs = null,
-            source = entity.url,
-            recoveryInfo = arrayOf(
-                MissionRecoveryInfo(
-                    serviceId = 0, // YouTube
-                    url = entity.url,
-                    position = 0
-                )
-            )
-        )
-        
-        mission.timestamp = entity.createdAt
-        mission.threadCount = missionEntity.threadCount.coerceIn(1, 5)
-        
-        return mission
-    }
-    
-    /**
-     * Start giga download service for a mission
-     */
-    fun startGigaDownload(context: Context, mission: DownloadMission) {
+    fun startDownload(context: Context, mission: DownloadMissionEntity) {
         try {
-            val intent = Intent(context, DownloadManagerService::class.java).apply {
-                action = DownloadManagerService.ACTION_START
-                putExtra(DownloadManagerService.EXTRA_MISSION, mission)
-            }
+            val intent = Intent().setClassName(context, DOWNLOAD_SERVICE_CLASS)
             context.startForegroundService(intent)
-            Log.i(TAG, "Started giga download for: ${mission.name}")
+            val preview = DownloadEntity(
+                videoId = mission.videoId,
+                title = mission.title,
+                thumbnailUrl = "",
+                uploaderName = "",
+                filePath = mission.outputFilePath ?: "",
+                totalSize = mission.totalBytes,
+                downloadedSize = mission.downloadedBytes,
+                status = DownloadStatus.DOWNLOADING,
+                quality = mission.quality,
+                format = mission.format
+            )
+            Log.i(TAG, "Requested download start: ${describe(preview, mission)}")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start giga download", e)
+            Log.e(TAG, "Failed to start download for ${mission.videoId}", e)
         }
-    }
-    
-    /**
-     * Pause a giga download mission
-     */
-    fun pauseGigaDownload(context: Context, missionId: String) {
-        val intent = Intent(context, DownloadManagerService::class.java).apply {
-            action = DownloadManagerService.ACTION_PAUSE
-            putExtra(DownloadManagerService.EXTRA_MISSION_ID, missionId)
-        }
-        context.startService(intent)
-    }
-    
-    /**
-     * Resume a paused giga download mission
-     */
-    fun resumeGigaDownload(context: Context, missionId: String) {
-        val intent = Intent(context, DownloadManagerService::class.java).apply {
-            action = DownloadManagerService.ACTION_RESUME
-            putExtra(DownloadManagerService.EXTRA_MISSION_ID, missionId)
-        }
-        context.startService(intent)
-    }
-    
-    /**
-     * Cancel and remove a giga download mission
-     */
-    fun cancelGigaDownload(context: Context, missionId: String) {
-        val intent = Intent(context, DownloadManagerService::class.java).apply {
-            action = DownloadManagerService.ACTION_CANCEL
-            putExtra(DownloadManagerService.EXTRA_MISSION_ID, missionId)
-        }
-        context.startService(intent)
     }
 }
